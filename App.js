@@ -1,68 +1,84 @@
 Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
-    launch: function() {
-        this.pulldownContainer = Ext.create('Ext.container.Container', {
+    items: [
+        {
+            xtype: 'container',
+            itemId: 'pulldown-container',
             layout: {
                 type: 'hbox',
                 align: 'stretch'
             }
-        });
-        this.add(this.pulldownContainer);
+        }
+    ],
+
+    launch: function () {
         this._loadIterations();
     },
 
-    _loadIterations: function() {
-        this.iterComboBox = Ext.create('Rally.ui.combobox.IterationComboBox', {
+    _loadIterations: function () {
+        var iterComboBox = {
+            xtype: 'rallyiterationcombobox',
+            itemId: 'iteration-combobox',
+            fieldLabel: 'Iteration',
+            labelAlign: 'right',
             listeners: {
-                ready: function(comboBox, newValue) {
-                    this._loadUsers();
-                },
-                select: function() {
-                    this._loadData();
-                },
+                ready: this._loadUsers,
+                select: this._loadData,
                 scope: this
             }
-        });
-        this.pulldownContainer.add(this.iterComboBox);
+        };
+        this.down('#pulldown-container').add(iterComboBox);
     },
 
-    _loadUsers: function() {
-        this.usersComboBox = Ext.create('Rally.ui.combobox.FieldValueComboBox', {
+    _loadUsers: function () {
+        var usersComboBox = {
+            xtype: 'rallyfieldvaluecombobox',
+            itemId: 'user-combobox',
             model: 'User Story',
             field: 'Owner',
+            fieldLabel: 'Owner',
+            labelAlign: 'right',
             listeners: {
-                ready: function(comboBox, newValue) {
-                    this._loadData();
-                },
-                select: function() {
-                    this._loadData();
-                },
+                ready: this._loadData,
+                select: this._loadData,
                 scope: this
             }
-        });
-        this.pulldownContainer.add(this.usersComboBox);
+        };
+        this.down('#pulldown-container').add(usersComboBox);
     },
 
-    _loadData: function() {
-        var selectedIterRef = this.iterComboBox.getRecord().get('_ref');
-        var selectedOwnerRef = this.usersComboBox.getValue();
-        var filters = [
-            {
-                property: 'Iteration',
+    _getFilters: function(iterationRef, ownerRef) {
+        var filters = Ext.create('Rally.data.wsapi.Filter', {
+            property: 'Iteration',
+            operation: '=',
+            value: iterationRef
+        });
+        if (ownerRef) {
+            var ownerFilter = Ext.create('Rally.data.wsapi.Filter', {
+                property: 'Owner',
                 operation: '=',
-                value: selectedIterRef
-            }
-        ];
-        if ( selectedOwnerRef ) {
-            filters.push({
+                value: ownerRef
+            });
+            filters = filters.and(ownerFilter);
+        }
+        return filters;
+    },
+
+    _loadData: function () {
+        var selectedIterRef = this.down('#iteration-combobox').getRecord().get('_ref');
+        var selectedOwnerRef = this.down('#user-combobox').getValue();
+        var filters = this._getFilters(selectedIterRef, selectedOwnerRef);
+
+        if (selectedOwnerRef) {
+            var ownerFilter = Ext.create('Rally.data.wsapi.Filter', {
                 property: 'Owner',
                 operation: '=',
                 value: selectedOwnerRef
             });
+            filters = filters.and(ownerFilter);
         }
-
-        if ( this.userStoryStore ) {
+        if (this.userStoryStore) {
             this.userStoryStore.setFilter(filters);
             this.userStoryStore.load();
         } else {
@@ -72,11 +88,7 @@ Ext.define('CustomApp', {
                 pageSize: 25,
                 filters: filters,
                 listeners: {
-                    load: function(store, data, success) {
-                        if (!this.myGrid) {
-                            this._createGrid(store);
-                        }
-                    },
+                    load: this._onStoreLoad,
                     scope: this
                 },
                 fetch: ['FormattedId', 'Name', 'ScheduleState', 'Iteration', 'Owner']
@@ -84,13 +96,20 @@ Ext.define('CustomApp', {
         }
     },
 
-    _createGrid: function(store) {
-        this.myGrid = Ext.create('Rally.ui.grid.Grid', {
+    _onStoreLoad: function(store) {
+        if (!this.myGrid) {
+            this._createGrid(store);
+        }
+    },
+
+    _createGrid: function (store) {
+        this.myGrid = {
+            xtype: 'rallygrid',
             store: store,
             columnCfgs: [
                 'FormattedID', 'Name', 'ScheduleState', 'Owner'
             ],
-        });
+        };
         this.add(this.myGrid);
     }
 });
